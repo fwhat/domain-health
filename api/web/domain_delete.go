@@ -17,6 +17,6 @@ func DomainDelete(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writeJson(writer, &DomainDeleteRes{
-		Success: store.GetDomainStore().DeleteDomainByUuid(uuid),
+		Success: store.GetDomainStore().DeleteDomainByAddress(uuid),
 	})
 }

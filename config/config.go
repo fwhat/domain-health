@@ -15,6 +15,16 @@ type Config struct {
 
 	ListenAddress string `mapstructure:"listen_address"`
 	HealthTime    int    `mapstructure:"health_time"`
+
+	Fetcher struct {
+		Aliyun struct {
+			EnableFetch     bool     `mapstructure:"enable_fetch"`
+			RegionId        string   `mapstructure:"region_id"`
+			AccessKeyId     string   `mapstructure:"access_key_id"`
+			AccessKeySecret string   `mapstructure:"access_key_secret"`
+			BlackRR         []string `mapstructure:"black_rr_list"`
+		} `mapstructure:"aliyun"`
+	} `mapstructure:"fetcher"`
 }
 
 func init() {

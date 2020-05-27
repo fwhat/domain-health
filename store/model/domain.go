@@ -2,21 +2,29 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
+	"net/url"
 	"time"
 )
 
+type From string
+
+const (
+	User   From = "user"
+	Aliyun From = "aliyun"
+)
+
 type Domain struct {
-	Uuid          string
-	Address       string
+	Record        *url.URL
 	ExpireTime    time.Time
 	LastCheckTime time.Time
 	CheckError    string
+	CreatedTime   time.Time
+	From          From
 }
 
 func NewDomain() (d *Domain) {
 	return &Domain{
-		Uuid: uuid.New().String(),
+		CreatedTime: time.Now(),
 	}
 }
 

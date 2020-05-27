@@ -5,6 +5,7 @@ import (
 	"github.com/Dowte/domain-health/common"
 	"github.com/Dowte/domain-health/config"
 	"github.com/Dowte/domain-health/pkg/file"
+	"github.com/Dowte/leveldb-admin"
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 )
@@ -31,6 +32,8 @@ func InitDomainStore() {
 	domainStore = &DomainStore{
 		db: db,
 	}
+
+	leveldb_admin.GetLevelAdmin().Register(db, "domains").Start()
 }
 
 func GetDomainStore() *DomainStore {

@@ -3,3 +3,13 @@ store_dir: /var/lib/domain-health
 log_file: /var/log/domain-health
 listen_address: :4222
 headlth_time: 600
+
+fetcher:
+  aliyun:
+    enable_fetch: false
+    region_id: ""
+    access_key_id: ""
+    access_key_secret: ""
+    black_rr_list:
+      - "@"
+      - "^\\*."

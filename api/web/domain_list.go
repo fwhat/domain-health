@@ -6,7 +6,7 @@ import (
 )
 
 func DomainList(writer http.ResponseWriter, request *http.Request) {
-	list := store.GetDomainStore().ReadAllDomainList()
+	list := store.GetDomainStore().ReadAllDomainListNoError()
 
 	writeJson(writer, list)
 }
