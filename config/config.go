@@ -16,6 +16,14 @@ type Config struct {
 	ListenAddress string `mapstructure:"listen_address"`
 	HealthTime    int    `mapstructure:"health_time"`
 
+	Noticer struct {
+		DingTalk struct {
+			EnableNotify bool   `mapstructure:"enable_notify"`
+			AppKey       string `mapstructure:"app_key"`
+			AppSecret    string `mapstructure:"app_secret"`
+		} `mapstructure:"ding_talk"`
+	} `mapstructure:"noticer"`
+
 	Fetcher struct {
 		Aliyun struct {
 			EnableFetch     bool     `mapstructure:"enable_fetch"`
