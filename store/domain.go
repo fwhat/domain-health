@@ -74,7 +74,7 @@ func (d *DomainStore) getKeyByAddress(address string) []byte {
 }
 
 func (d *DomainStore) SaveDomainInfo(item *model.Domain) bool {
-	return d.db.Put(d.getKeyByAddress(item.Record.String()), item.Marshal(), nil) == nil
+	return d.db.Put(d.getKeyByAddress(item.Address), item.Marshal(), nil) == nil
 }
 
 func (d *DomainStore) DeleteDomainByAddress(address string) bool {

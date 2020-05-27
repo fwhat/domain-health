@@ -10,6 +10,8 @@ fetcher:
     region_id: ""
     access_key_id: ""
     access_key_secret: ""
+    only_type:
+      - "A"
     black_rr_list:
       - "@"
       - "^\\*."

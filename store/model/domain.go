@@ -2,7 +2,6 @@ package model
 
 import (
 	"encoding/json"
-	"net/url"
 	"time"
 )
 
@@ -13,18 +12,23 @@ const (
 	Aliyun From = "aliyun"
 )
 
+type CertInfo struct {
+	ExpireTime int64
+	CommonName string
+}
+
 type Domain struct {
-	Record        *url.URL
-	ExpireTime    time.Time
-	LastCheckTime time.Time
+	Address       string
+	LastCheckTime int64
 	CheckError    string
-	CreatedTime   time.Time
+	CreatedTime   int64
 	From          From
+	CertInfo      CertInfo
 }
 
 func NewDomain() (d *Domain) {
 	return &Domain{
-		CreatedTime: time.Now(),
+		CreatedTime: time.Now().Unix(),
 	}
 }
 

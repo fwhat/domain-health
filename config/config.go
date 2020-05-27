@@ -23,6 +23,7 @@ type Config struct {
 			AccessKeyId     string   `mapstructure:"access_key_id"`
 			AccessKeySecret string   `mapstructure:"access_key_secret"`
 			BlackRR         []string `mapstructure:"black_rr_list"`
+			OnlyType        []string `mapstructure:"only_type"`
 		} `mapstructure:"aliyun"`
 	} `mapstructure:"fetcher"`
 }

@@ -1,14 +1,17 @@
 package domain_health
 
 import (
+	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/Dowte/domain-health/common"
 	"github.com/Dowte/domain-health/config"
-	"github.com/Dowte/domain-health/domain_health/fetch"
-	"github.com/Dowte/domain-health/domain_health/fetch/aliyun"
+	"github.com/Dowte/domain-health/domain_health/fetcher"
+	"github.com/Dowte/domain-health/domain_health/fetcher/aliyun"
 	"github.com/Dowte/domain-health/store"
 	"github.com/Dowte/domain-health/store/model"
-	"net/http"
+	"math/rand"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -17,45 +20,49 @@ import (
 var log = common.Log
 
 var (
-	ErrGetExpireTimeErr = errors.New("get domain expire time err")
-	ErrNotTSL           = errors.New("not TSL domain")
-	ErrTimeOut          = errors.New("check domain timeout")
+	ErrNotTSL = errors.New("not TSL domain")
 )
 
 type Service struct {
-	fetchers map[model.From]fetch.Fetcher
+	fetchers map[model.From]fetcher.Fetcher
 }
 
-func GetExpireTime(record url.URL) (time time.Time, err error) {
-	record.Scheme = "https"
-	resp, err := http.Get(record.String())
-	if err == nil {
-		defer resp.Body.Close()
-
-		if info := resp.TLS; info != nil {
-			if len(info.PeerCertificates) > 0 {
-				return info.PeerCertificates[0].NotAfter, nil
-			} else {
-				err = ErrNotTSL
-				return
-			}
-		} else {
-			err = ErrGetExpireTimeErr
-			return
-		}
-	} else {
-		if e, ok := err.(*url.Error); ok && e.Timeout() {
-			err = ErrTimeOut
-		} else {
-			return
-		}
+func GetCretInfo(address string) (certInfo model.CertInfo, err error) {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:443", address), time.Second*10)
+	if err != nil {
+		return certInfo, err
 	}
-	return
+
+	client := tls.Client(conn, &tls.Config{
+		Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		ServerName: address,
+	})
+
+	err = client.Handshake()
+	if err != nil {
+		return certInfo, err
+	}
+
+	err = client.VerifyHostname(address)
+	if err != nil {
+		return certInfo, err
+	}
+
+	certificates := client.ConnectionState().PeerCertificates
+
+	if len(certificates) > 0 {
+		certInfo.ExpireTime = certificates[0].NotAfter.Unix()
+		certInfo.CommonName = certificates[0].Issuer.CommonName
+
+		return certInfo, nil
+	} else {
+		return certInfo, ErrNotTSL
+	}
 }
 
 func NewService() *Service {
 	s := &Service{
-		fetchers: map[model.From]fetch.Fetcher{},
+		fetchers: map[model.From]fetcher.Fetcher{},
 	}
 	if config.Instance.Fetcher.Aliyun.EnableFetch {
 		s.fetchers[model.Aliyun] = &aliyun.Fetcher{
@@ -63,6 +70,7 @@ func NewService() *Service {
 			AccessKeyId:     config.Instance.Fetcher.Aliyun.AccessKeyId,
 			AccessKeySecret: config.Instance.Fetcher.Aliyun.AccessKeySecret,
 			BlackRR:         config.Instance.Fetcher.Aliyun.BlackRR,
+			OnlyType:        config.Instance.Fetcher.Aliyun.OnlyType,
 		}
 	}
 
@@ -88,8 +96,8 @@ func arrayDiff(array1 []string, array2 []string) []string {
 
 func (s *Service) reFetch() {
 	domainStore := store.GetDomainStore()
-	for from, fetcher := range s.fetchers {
-		records, err := fetcher.Fetch()
+	for from, f := range s.fetchers {
+		records, err := f.Fetch()
 		if err != nil {
 			log.Error(err)
 		}
@@ -97,7 +105,7 @@ func (s *Service) reFetch() {
 		var oldArr []string
 
 		for _, old := range domainStore.ReadAllDomainByFrom(from) {
-			oldArr = append(oldArr, old.Record.String())
+			oldArr = append(oldArr, old.Address)
 		}
 
 		domainStore.DeleteAddressArr(arrayDiff(oldArr, records))
@@ -106,11 +114,11 @@ func (s *Service) reFetch() {
 			if !domainStore.HasDomainByAddress(record) {
 				domain := model.NewDomain()
 				domain.From = from
-				parse, err := url.Parse(record)
+				_, err := url.Parse(record)
 				if err != nil {
 					log.Error(err)
 				} else {
-					domain.Record = parse
+					domain.Address = record
 					domainStore.SaveDomainInfo(domain)
 				}
 			}
@@ -128,7 +136,7 @@ func (s *Service) StartCheck() {
 		wp.Add(1)
 		go func(domain *model.Domain) {
 			checkAndSave(domain)
-			log.Debugf("checked record [%s]", domain.Record.String())
+			log.Debugf("checked record [%s]", domain.Address)
 			wp.Done()
 		}(domain)
 	}
@@ -136,14 +144,14 @@ func (s *Service) StartCheck() {
 }
 
 func checkAndSave(domain *model.Domain) {
-	expireTime, err := GetExpireTime(*domain.Record)
+	certInfo, err := GetCretInfo(domain.Address)
 	if err != nil {
 		domain.CheckError = err.Error()
-		domain.LastCheckTime = time.Now()
+		domain.LastCheckTime = time.Now().Unix()
 	} else {
 		domain.CheckError = ""
-		domain.ExpireTime = expireTime
-		domain.LastCheckTime = time.Now()
+		domain.CertInfo = certInfo
+		domain.LastCheckTime = time.Now().Unix()
 	}
 
 	store.GetDomainStore().SaveDomainInfo(domain)

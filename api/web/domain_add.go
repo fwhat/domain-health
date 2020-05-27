@@ -40,7 +40,7 @@ func DomainAdd(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	domain := model.NewDomain()
-	domain.Record = address
+	domain.Address = address.String()
 	domain.From = model.User
 
 	store.GetDomainStore().SaveDomainInfo(domain)
