@@ -1,11 +1,11 @@
 debug_level: debug
 store_dir: /var/lib/domain-health/leveldb
 log_file: /var/log/domain-health
-listen_address: :4222
-health_time: 600
-connect_timeout: 10
-subscribe_cert_warning: 2592000
-subscribe_message_calm: 43200
+listen_address: :4222 # api服务端口
+health_time: 600 # 检查时间间隔 秒
+connect_timeout: 10 # 连接域名超时时间 秒
+subscribe_cert_warning: 2592000 # 证书过期预警时间 30天
+subscribe_message_calm: 43200 # 通知静默时间 12小时
 subscriber:
   ding_talk:
     enable: false
