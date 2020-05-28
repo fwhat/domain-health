@@ -37,6 +37,9 @@ func (s *Subscriber) AddMessage(msg subscriber.Message) {
 func (s *Subscriber) Delivery() error {
 	s.messagesMux.Lock()
 	defer s.messagesMux.Unlock()
+	if len(s.messages) == 0 {
+		return nil
+	}
 
 	text := ""
 
