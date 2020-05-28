@@ -19,6 +19,7 @@ var log = common.Log
 func Start() error {
 	http.HandleFunc(apiDomainAdd, web.DomainAdd)
 	http.HandleFunc(apiDomainList, web.DomainList)
+	http.HandleFunc(apiDomainDelete, web.DomainDelete)
 
 	log.Noticef("start api server on %s", config.Instance.ListenAddress)
 

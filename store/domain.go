@@ -11,7 +11,7 @@ type DomainStore struct {
 	db *leveldb.DB
 }
 
-func (d *DomainStore) ReadAllDomainByFrom(from model.From) []*model.Domain {
+func (d *DomainStore) ReadAllDomainByFrom(from string) []*model.Domain {
 	list := make([]*model.Domain, 0)
 	iterator := d.db.NewIterator(util.BytesPrefix([]byte("domain/domainList/")), nil)
 	defer iterator.Release()
@@ -87,7 +87,7 @@ func (d *DomainStore) HasDomainByAddress(address string) bool {
 	return has && err == nil
 }
 
-func (d *DomainStore) DeleteAllByFrom(from model.From) []*model.Domain {
+func (d *DomainStore) DeleteAllByFrom(from string) []*model.Domain {
 	list := make([]*model.Domain, 0)
 	iterator := d.db.NewIterator(util.BytesPrefix([]byte("domain/domainList/")), nil)
 	defer iterator.Release()

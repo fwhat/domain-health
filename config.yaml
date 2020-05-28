@@ -7,18 +7,20 @@ connect_timeout: 10 # 连接域名超时时间 秒
 subscribe_cert_warning: 2592000 # 证书过期预警时间 30天
 subscribe_message_calm: 43200 # 通知静默时间 12小时
 subscriber:
-  ding_talk:
+  - type: ding_talk
     enable: false
-    secret: ""
-    web_hook: ""
+    config:
+      secret: ""
+      web_hook: ""
 fetcher:
-  aliyun:
+  - type: aliyun
     enable: false
-    region_id: ""
-    access_key_id: ""
-    access_key_secret: ""
-    only_type:
-      - "A"
-    black_rr_list:
-      - "@"
-      - "^\\*."
+    config:
+      region_id: ""
+      access_key_id: ""
+      access_key_secret: ""
+      only_type:
+        - "A"
+      black_rr:
+        - "@"
+        - "^\\*."

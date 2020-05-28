@@ -1,6 +1,7 @@
 package aliyun
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
@@ -8,15 +9,29 @@ import (
 )
 
 type Fetcher struct {
-	RegionId        string
-	AccessKeyId     string
-	AccessKeySecret string
-	BlackRR         []string
-	OnlyType        []string
+	RegionId        string   `json:"region_id"`
+	AccessKeyId     string   `json:"access_key_id"`
+	AccessKeySecret string   `json:"access_key_secret"`
+	BlackRR         []string `json:"black_rr"`
+	OnlyType        []string `json:"only_type"`
 
 	client      *alidns.Client
 	blackRRMap  map[string]*regexp.Regexp
 	onlyTypeMap map[string]bool
+}
+
+func (f *Fetcher) InitFromMap(config map[string]interface{}) (err error) {
+	marshal, err := json.Marshal(config)
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(marshal, f)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *Fetcher) Fetch() (records []string, err error) {

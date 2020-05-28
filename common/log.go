@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/qjues/domain-health/config"
 	"github.com/op/go-logging"
+	"github.com/qjues/domain-health/config"
 	"os"
 )
 

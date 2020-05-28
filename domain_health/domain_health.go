@@ -29,7 +29,7 @@ var (
 )
 
 type Service struct {
-	fetchers    map[model.From]fetcher.Fetcher
+	fetchers    map[string]fetcher.Fetcher
 	subscribers []subscriber.Subscriber
 
 	certWarnDelivered *sync.Map
@@ -68,107 +68,15 @@ func GetCretInfo(address string) (certInfo model.CertInfo, err error) {
 	}
 }
 
-func (s *Service) initFetcher() {
-	if config.Instance.Fetcher.Aliyun.Enable {
-		s.fetchers[model.Aliyun] = &aliyun.Fetcher{
-			RegionId:        config.Instance.Fetcher.Aliyun.RegionId,
-			AccessKeyId:     config.Instance.Fetcher.Aliyun.AccessKeyId,
-			AccessKeySecret: config.Instance.Fetcher.Aliyun.AccessKeySecret,
-			BlackRR:         config.Instance.Fetcher.Aliyun.BlackRR,
-			OnlyType:        config.Instance.Fetcher.Aliyun.OnlyType,
-		}
-	}
-}
-
-func (s *Service) initSubscriber() {
-	if config.Instance.Subscriber.DingTalk.Enable {
-		s.subscribers = append(s.subscribers, &dingtalk.Subscriber{
-			Secret:  config.Instance.Subscriber.DingTalk.Secret,
-			WebHook: config.Instance.Subscriber.DingTalk.WebHook,
-		})
-	}
-}
-
-func (s *Service) addSubscriberMessage(message subscriber.Message) {
-	for _, sub := range s.subscribers {
-		last, ok := s.certWarnDelivered.Load(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type))
-		if ok && last.(int64)+config.Instance.SubscribeMessageCalm > time.Now().Unix() {
-			log.Debugf("message calm [%s] [%s] last time: [%s] ", message.Domain.Address, message.Type, time.Unix(last.(int64), 0).Format("2006-01-02 15:04:05"))
-			continue
-		}
-
-		sub.AddMessage(message)
-		s.certWarnDelivered.Store(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type), time.Now().Unix())
-	}
-}
-
-func (s *Service) delivery() {
-	for _, sub := range s.subscribers {
-		err := sub.Delivery()
-		if err != nil {
-			log.Error(err)
-		}
-	}
-}
-
 func NewService() *Service {
 	s := &Service{
-		fetchers:          map[model.From]fetcher.Fetcher{},
+		fetchers:          map[string]fetcher.Fetcher{},
 		certWarnDelivered: &sync.Map{},
 	}
 	s.initFetcher()
 	s.initSubscriber()
 
 	return s
-}
-
-func arrayDiff(array1 []string, array2 []string) []string {
-	array2Map := map[string]bool{}
-	for _, s := range array2 {
-		array2Map[s] = true
-	}
-
-	var diff []string
-
-	for _, s := range array1 {
-		if _, ok := array2Map[s]; !ok {
-			diff = append(diff, s)
-		}
-	}
-
-	return diff
-}
-
-func (s *Service) reFetch() {
-	domainStore := store.GetDomainStore()
-	for from, f := range s.fetchers {
-		records, err := f.Fetch()
-		if err != nil {
-			log.Error(err)
-		}
-
-		var oldArr []string
-
-		for _, old := range domainStore.ReadAllDomainByFrom(from) {
-			oldArr = append(oldArr, old.Address)
-		}
-
-		domainStore.DeleteAddressArr(arrayDiff(oldArr, records))
-
-		for _, record := range records {
-			if !domainStore.HasDomainByAddress(record) {
-				domain := model.NewDomain()
-				domain.From = from
-				_, err := url.Parse(record)
-				if err != nil {
-					log.Error(err)
-				} else {
-					domain.Address = record
-					domainStore.SaveDomainInfo(domain)
-				}
-			}
-		}
-	}
 }
 
 func (s *Service) StartCheck() {
@@ -248,4 +156,109 @@ func checkAndSave(domain *model.Domain) {
 	}
 
 	store.GetDomainStore().SaveDomainInfo(domain)
+}
+
+func (s *Service) initFetcher() {
+	for _, item := range config.Instance.Fetcher {
+		switch item.Type {
+		case "aliyun":
+			fetch := &aliyun.Fetcher{}
+			err := fetch.InitFromMap(item.Config)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
+			s.fetchers[item.Type] = fetch
+		}
+	}
+}
+
+func (s *Service) initSubscriber() {
+	for _, sub := range config.Instance.Subscriber {
+		switch sub.Type {
+		case "ding_talk":
+			subStruct := &dingtalk.Subscriber{}
+			err := subStruct.InitFromMap(sub.Config)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
+			s.subscribers = append(s.subscribers, subStruct)
+		}
+	}
+}
+
+func (s *Service) addSubscriberMessage(message subscriber.Message) {
+	last, ok := s.certWarnDelivered.Load(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type))
+
+	for _, sub := range s.subscribers {
+		if ok && last.(int64)+config.Instance.SubscribeMessageCalm > time.Now().Unix() {
+			log.Debugf("message calm [%s] [%s] last time: [%s] ", message.Domain.Address, message.Type, time.Unix(last.(int64), 0).Format("2006-01-02 15:04:05"))
+			continue
+		}
+
+		sub.AddMessage(message)
+	}
+
+	s.certWarnDelivered.Store(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type), time.Now().Unix())
+}
+
+func (s *Service) delivery() {
+	for _, sub := range s.subscribers {
+		err := sub.Delivery()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func (s *Service) reFetch() {
+	domainStore := store.GetDomainStore()
+	for from, f := range s.fetchers {
+		records, err := f.Fetch()
+		if err != nil {
+			log.Error(err)
+		}
+
+		var oldArr []string
+
+		for _, old := range domainStore.ReadAllDomainByFrom(from) {
+			oldArr = append(oldArr, old.Address)
+		}
+
+		domainStore.DeleteAddressArr(arrayDiff(oldArr, records))
+
+		for _, record := range records {
+			if !domainStore.HasDomainByAddress(record) {
+				domain := model.NewDomain()
+				domain.From = from
+				_, err := url.Parse(record)
+				if err != nil {
+					log.Error(err)
+				} else {
+					domain.Address = record
+					domainStore.SaveDomainInfo(domain)
+				}
+			}
+		}
+	}
+}
+
+func arrayDiff(array1 []string, array2 []string) []string {
+	array2Map := map[string]bool{}
+	for _, s := range array2 {
+		array2Map[s] = true
+	}
+
+	var diff []string
+
+	for _, s := range array1 {
+		if _, ok := array2Map[s]; !ok {
+			diff = append(diff, s)
+		}
+	}
+
+	return diff
 }

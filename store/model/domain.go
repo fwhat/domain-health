@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-type From string
-
-const (
-	User   From = "user"
-	Aliyun From = "aliyun"
-)
-
 type CertInfo struct {
 	ExpireTime int64
 	CommonName string
@@ -24,7 +17,7 @@ type Domain struct {
 	CheckErrorStr string
 	OriginError   error `json:"-"`
 	CreatedTime   int64
-	From          From
+	From          string
 	CertInfo      CertInfo
 }
 

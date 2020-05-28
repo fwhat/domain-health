@@ -19,23 +19,14 @@ type Config struct {
 	SubscribeCertWarning int64  `mapstructure:"subscribe_cert_warning"`
 	SubscribeMessageCalm int64  `mapstructure:"subscribe_message_calm"`
 
-	Subscriber struct {
-		DingTalk struct {
-			Enable  bool   `mapstructure:"enable"`
-			Secret  string `mapstructure:"secret"`
-			WebHook string `mapstructure:"web_hook"`
-		} `mapstructure:"ding_talk"`
+	Subscriber []struct {
+		Type   string                 `mapstructure:"type"`
+		Config map[string]interface{} `mapstructure:"config"`
 	} `mapstructure:"subscriber"`
 
-	Fetcher struct {
-		Aliyun struct {
-			Enable          bool     `mapstructure:"enable"`
-			RegionId        string   `mapstructure:"region_id"`
-			AccessKeyId     string   `mapstructure:"access_key_id"`
-			AccessKeySecret string   `mapstructure:"access_key_secret"`
-			BlackRR         []string `mapstructure:"black_rr_list"`
-			OnlyType        []string `mapstructure:"only_type"`
-		} `mapstructure:"aliyun"`
+	Fetcher []struct {
+		Type   string                 `mapstructure:"type"`
+		Config map[string]interface{} `mapstructure:"config"`
 	} `mapstructure:"fetcher"`
 }
 

@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/prometheus/common/log"
 	"github.com/qjues/domain-health/config"
 	"github.com/qjues/domain-health/domain_health/subscriber"
-	"github.com/prometheus/common/log"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -20,11 +20,25 @@ import (
 )
 
 type Subscriber struct {
-	Secret  string
-	WebHook string
+	Secret  string `json:"secret"`
+	WebHook string `json:"web_hook"`
 
 	messages    []subscriber.Message
 	messagesMux sync.Mutex
+}
+
+func (s *Subscriber) InitFromMap(config map[string]interface{}) (err error) {
+	marshal, err := json.Marshal(config)
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(marshal, s)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Subscriber) AddMessage(msg subscriber.Message) {
@@ -93,12 +107,15 @@ type baseRes struct {
 
 func (s *Subscriber) webHookSend(reqBody io.Reader) (err error) {
 	apiUrl, _ := url.Parse(s.WebHook)
-	timestamp, sign := s.getSign()
+	if s.Secret != "" {
+		timestamp, sign := s.getSign()
 
-	query := apiUrl.Query()
-	query.Add("timestamp", fmt.Sprintf("%d", timestamp))
-	query.Add("sign", sign)
-	apiUrl.RawQuery = query.Encode()
+		query := apiUrl.Query()
+		query.Add("timestamp", fmt.Sprintf("%d", timestamp))
+		query.Add("sign", sign)
+		apiUrl.RawQuery = query.Encode()
+	}
+
 	resp, err := http.Post(apiUrl.String(), "application/json", reqBody)
 	if err != nil {
 		log.Debug(err)
