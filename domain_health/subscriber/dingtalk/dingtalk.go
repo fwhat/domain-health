@@ -1,66 +1,127 @@
 package dingtalk
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/Dowte/domain-health/config"
+	"github.com/Dowte/domain-health/domain_health/subscriber"
+	"github.com/prometheus/common/log"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"sync"
+	"time"
 )
 
 type Subscriber struct {
-	AppKey    string
-	AppSecret string
+	Secret  string
+	WebHook string
 
-	accessToken string
+	messages    []subscriber.Message
+	messagesMux sync.Mutex
 }
 
-func (s Subscriber) Push() {
+func (s *Subscriber) AddMessage(msg subscriber.Message) {
+	s.messagesMux.Lock()
+	defer s.messagesMux.Unlock()
 
+	s.messages = append(s.messages, msg)
 }
 
-type getAccessTokenRes struct {
-	ErrCode     int    `json:"errcode"`
-	ErrMsg      string `json:"errmsg"`
-	AccessToken string `json:"access_token"`
-}
+func (s *Subscriber) Delivery() error {
+	s.messagesMux.Lock()
+	defer s.messagesMux.Unlock()
 
-func (s *Subscriber) loadAccessToken() (err error) {
-	resp, err := http.Get(fmt.Sprintf("https://oapi.dingtalk.com/gettoken?appkey=%s&appsecret=%s", s.AppKey, s.AppSecret))
+	text := ""
 
-	if err != nil {
-		return
+	expiredTemplate := "域名名称: **%s**  \n  报警类型: **%s**  \n  过期时间: **%s**  \n  ________________________  \n"
+	preExpiredTemplate := "域名名称: **%s**  \n  报警类型: **%s**  \n  过期时间: **%s**  \n  ________________________  \n"
+	connectTimeoutTemplate := "域名名称: **%s**  \n  报警类型: **%s**  \n  连接耗时: **%ds**  \n  ________________________  \n"
+
+	for _, message := range s.messages {
+		switch message.Type {
+		case subscriber.CretExpired:
+			text += fmt.Sprintf(expiredTemplate, message.Domain.Address, "域名证书已过期", formatTimestamp(message.Domain.CertInfo.ExpireTime))
+		case subscriber.CretPreExpired:
+			text += fmt.Sprintf(preExpiredTemplate, message.Domain.Address, "域名证书即将过期", formatTimestamp(message.Domain.CertInfo.ExpireTime))
+		case subscriber.ConnectTimeout:
+			text += fmt.Sprintf(connectTimeoutTemplate, message.Domain.Address, "域名连接超时", config.Instance.ConnectTimeout)
+		}
 	}
 
+	msg := `{
+     "msgtype": "markdown",
+     "markdown": {
+         "title":"域名异常警告",
+         "text": "# 域名异常警告  \n  ________________________  \n %s  提醒时间: **%s**"
+     },
+      "at": {
+          "isAtAll": true
+      }
+ }`
+	s.messages = []subscriber.Message{}
+
+	return s.webHookSend(bytes.NewReader([]byte(fmt.Sprintf(msg, text, formatTimestamp(time.Now().Unix())))))
+}
+
+func formatTimestamp(timestamp int64) string {
+	return time.Unix(timestamp, 0).Format("2006-01-02 15:04:05")
+}
+
+func (s *Subscriber) getSign() (timestamp int64, sign string) {
+	timestamp = time.Now().UnixNano() / 1e6
+
+	h := hmac.New(sha256.New, []byte(s.Secret))
+	h.Write([]byte(fmt.Sprintf("%d\n%s", timestamp, s.Secret)))
+
+	return timestamp, base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+type baseRes struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+func (s *Subscriber) webHookSend(reqBody io.Reader) (err error) {
+	apiUrl, _ := url.Parse(s.WebHook)
+	timestamp, sign := s.getSign()
+
+	query := apiUrl.Query()
+	query.Add("timestamp", fmt.Sprintf("%d", timestamp))
+	query.Add("sign", sign)
+	apiUrl.RawQuery = query.Encode()
+	resp, err := http.Post(apiUrl.String(), "application/json", reqBody)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
-	res := &getAccessTokenRes{}
+	res := &baseRes{}
 
 	err = json.Unmarshal(body, res)
 
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
-	s.accessToken = res.AccessToken
-
-	return nil
-}
-
-func (s *Subscriber) GetAccessToken() (accessToken string, err error) {
-	if s.accessToken == "" {
-		err := s.loadAccessToken()
-		if err != nil {
-			return "", err
-		}
+	if res.ErrCode != 0 {
+		err = errors.New(fmt.Sprintf("%d %s", res.ErrCode, res.ErrMsg))
+		log.Error(err)
+		return
 	}
 
-	return s.accessToken, nil
-}
-
-func (s *Subscriber) doRequest() {
-
+	return
 }

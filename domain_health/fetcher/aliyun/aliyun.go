@@ -62,6 +62,10 @@ func (f *Fetcher) Fetch() (records []string, err error) {
 	}
 
 	for _, record := range allRecords {
+		if record.Status != "ENABLE" {
+			continue
+		}
+
 		if len(f.onlyTypeMap) > 0 {
 			if _, ok := f.onlyTypeMap[record.Type]; !ok {
 				continue

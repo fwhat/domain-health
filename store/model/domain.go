@@ -20,7 +20,9 @@ type CertInfo struct {
 type Domain struct {
 	Address       string
 	LastCheckTime int64
-	CheckError    string
+	CheckError    error `json:"-"`
+	CheckErrorStr string
+	OriginError   error `json:"-"`
 	CreatedTime   int64
 	From          From
 	CertInfo      CertInfo
@@ -47,6 +49,9 @@ func (d *Domain) UnmarshalFrom(b []byte) error {
 }
 
 func (d *Domain) Marshal() []byte {
+	if d.CheckErrorStr == "" && d.CheckError != nil {
+		d.CheckErrorStr = d.CheckError.Error()
+	}
 	bytes, err := json.Marshal(d)
 	if err != nil {
 		panic(err)

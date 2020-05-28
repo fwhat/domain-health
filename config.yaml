@@ -2,11 +2,18 @@ debug_level: debug
 store_dir: /var/lib/domain-health
 log_file: /var/log/domain-health
 listen_address: :4222
-headlth_time: 600
-
+health_time: 600
+connect_timeout: 10
+subscribe_cert_warning: 2592000
+subscribe_message_calm: 43200
+subscriber:
+  ding_talk:
+    enable: false
+    secret: ""
+    web_hook: ""
 fetcher:
   aliyun:
-    enable_fetch: false
+    enable: false
     region_id: ""
     access_key_id: ""
     access_key_secret: ""

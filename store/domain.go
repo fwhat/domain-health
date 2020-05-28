@@ -40,7 +40,7 @@ func (d *DomainStore) ReadAllDomainListNoError() []*model.Domain {
 		item := &model.Domain{}
 		err := item.UnmarshalFrom(iterator.Value())
 		if err == nil {
-			if item.CheckError == "" {
+			if item.CheckErrorStr == "" {
 				list = append(list, item)
 			}
 		} else {

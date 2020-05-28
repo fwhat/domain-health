@@ -2,12 +2,15 @@ package domain_health
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/Dowte/domain-health/common"
 	"github.com/Dowte/domain-health/config"
 	"github.com/Dowte/domain-health/domain_health/fetcher"
 	"github.com/Dowte/domain-health/domain_health/fetcher/aliyun"
+	"github.com/Dowte/domain-health/domain_health/subscriber"
+	"github.com/Dowte/domain-health/domain_health/subscriber/dingtalk"
 	"github.com/Dowte/domain-health/store"
 	"github.com/Dowte/domain-health/store/model"
 	"math/rand"
@@ -20,15 +23,20 @@ import (
 var log = common.Log
 
 var (
-	ErrNotTSL = errors.New("not TSL domain")
+	ErrNotTSL               = errors.New("not TSL domain")
+	ErrExpiredTSL           = errors.New("expired TSL domain")
+	ErrDomainConnectTimeout = errors.New("domain connect timeout")
 )
 
 type Service struct {
-	fetchers map[model.From]fetcher.Fetcher
+	fetchers    map[model.From]fetcher.Fetcher
+	subscribers []subscriber.Subscriber
+
+	certWarnDelivered *sync.Map
 }
 
 func GetCretInfo(address string) (certInfo model.CertInfo, err error) {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:443", address), time.Second*10)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:443", address), time.Second*time.Duration(config.Instance.ConnectTimeout))
 	if err != nil {
 		return certInfo, err
 	}
@@ -60,11 +68,8 @@ func GetCretInfo(address string) (certInfo model.CertInfo, err error) {
 	}
 }
 
-func NewService() *Service {
-	s := &Service{
-		fetchers: map[model.From]fetcher.Fetcher{},
-	}
-	if config.Instance.Fetcher.Aliyun.EnableFetch {
+func (s *Service) initFetcher() {
+	if config.Instance.Fetcher.Aliyun.Enable {
 		s.fetchers[model.Aliyun] = &aliyun.Fetcher{
 			RegionId:        config.Instance.Fetcher.Aliyun.RegionId,
 			AccessKeyId:     config.Instance.Fetcher.Aliyun.AccessKeyId,
@@ -73,6 +78,46 @@ func NewService() *Service {
 			OnlyType:        config.Instance.Fetcher.Aliyun.OnlyType,
 		}
 	}
+}
+
+func (s *Service) initSubscriber() {
+	if config.Instance.Subscriber.DingTalk.Enable {
+		s.subscribers = append(s.subscribers, &dingtalk.Subscriber{
+			Secret:  config.Instance.Subscriber.DingTalk.Secret,
+			WebHook: config.Instance.Subscriber.DingTalk.WebHook,
+		})
+	}
+}
+
+func (s *Service) addSubscriberMessage(message subscriber.Message) {
+	for _, sub := range s.subscribers {
+		last, ok := s.certWarnDelivered.Load(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type))
+		if ok && last.(int64)+config.Instance.SubscribeMessageCalm > time.Now().Unix() {
+			log.Debugf("message calm [%s] [%s] last time: [%s] ", message.Domain.Address, message.Type, time.Unix(last.(int64), 0).Format("2006-01-02 15:04:05"))
+			continue
+		}
+
+		sub.AddMessage(message)
+		s.certWarnDelivered.Store(fmt.Sprintf("%s-%s", message.Domain.Address, message.Type), time.Now().Unix())
+	}
+}
+
+func (s *Service) delivery() {
+	for _, sub := range s.subscribers {
+		err := sub.Delivery()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func NewService() *Service {
+	s := &Service{
+		fetchers:          map[model.From]fetcher.Fetcher{},
+		certWarnDelivered: &sync.Map{},
+	}
+	s.initFetcher()
+	s.initSubscriber()
 
 	return s
 }
@@ -135,21 +180,62 @@ func (s *Service) StartCheck() {
 	for _, domain := range list {
 		wp.Add(1)
 		go func(domain *model.Domain) {
+			start := time.Now()
 			checkAndSave(domain)
-			log.Debugf("checked record [%s]", domain.Address)
+			// 有设置订阅域名证书报警时间 && 域名正常 && 域名的证书过期时间小于报警阀值
+
+			if domain.CheckError == ErrExpiredTSL {
+				s.addSubscriberMessage(subscriber.Message{
+					Type:   subscriber.CretExpired,
+					Domain: domain,
+				})
+			}
+
+			if domain.CheckError == ErrDomainConnectTimeout {
+				s.addSubscriberMessage(subscriber.Message{
+					Type:   subscriber.ConnectTimeout,
+					Domain: domain,
+				})
+			}
+
+			if config.Instance.SubscribeCertWarning > 0 && domain.CheckError == nil && domain.CertInfo.ExpireTime < start.Unix()+config.Instance.SubscribeCertWarning {
+				s.addSubscriberMessage(subscriber.Message{
+					Type:   subscriber.CretPreExpired,
+					Domain: domain,
+				})
+			}
+			log.Debugf("checked record [%s] speed %v", domain.Address, time.Now().Sub(start))
 			wp.Done()
 		}(domain)
 	}
 	wp.Wait()
+	s.delivery()
 }
 
 func checkAndSave(domain *model.Domain) {
 	certInfo, err := GetCretInfo(domain.Address)
 	if err != nil {
-		domain.CheckError = err.Error()
-		domain.LastCheckTime = time.Now().Unix()
+		if hostnameErr, ok := err.(x509.HostnameError); ok {
+			domain.CheckError = ErrNotTSL
+			domain.OriginError = hostnameErr
+		} else if certificateInvalidError, ok := err.(x509.CertificateInvalidError); ok {
+			domain.CheckError = ErrExpiredTSL
+			domain.OriginError = certificateInvalidError
+			domain.CertInfo.ExpireTime = certificateInvalidError.Cert.NotAfter.Unix()
+			domain.CertInfo.CommonName = certificateInvalidError.Cert.Issuer.CommonName
+
+		} else if opError, ok := err.(*net.OpError); ok && opError.Timeout() {
+			domain.CheckError = ErrDomainConnectTimeout
+			domain.OriginError = opError
+
+		} else {
+			domain.CheckError = err
+			domain.OriginError = err
+			domain.LastCheckTime = time.Now().Unix()
+		}
+
 	} else {
-		domain.CheckError = ""
+		domain.CheckError = nil
 		domain.CertInfo = certInfo
 		domain.LastCheckTime = time.Now().Unix()
 	}

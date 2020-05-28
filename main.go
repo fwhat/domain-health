@@ -18,8 +18,10 @@ func main() {
 
 	go server.Start()
 
+	service := domain_health.NewService()
+
 	for {
-		domain_health.NewService().StartCheck()
+		service.StartCheck()
 
 		log.Info("check success.")
 

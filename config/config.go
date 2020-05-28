@@ -13,20 +13,23 @@ type Config struct {
 	StoreDir   string `mapstructure:"store_dir"`
 	LogFile    string `mapstructure:"log_file"`
 
-	ListenAddress string `mapstructure:"listen_address"`
-	HealthTime    int    `mapstructure:"health_time"`
+	ListenAddress        string `mapstructure:"listen_address"`
+	HealthTime           int    `mapstructure:"health_time"`
+	ConnectTimeout       int    `mapstructure:"connect_timeout"`
+	SubscribeCertWarning int64  `mapstructure:"subscribe_cert_warning"`
+	SubscribeMessageCalm int64  `mapstructure:"subscribe_message_calm"`
 
-	Noticer struct {
+	Subscriber struct {
 		DingTalk struct {
-			EnableNotify bool   `mapstructure:"enable_notify"`
-			AppKey       string `mapstructure:"app_key"`
-			AppSecret    string `mapstructure:"app_secret"`
+			Enable  bool   `mapstructure:"enable"`
+			Secret  string `mapstructure:"secret"`
+			WebHook string `mapstructure:"web_hook"`
 		} `mapstructure:"ding_talk"`
-	} `mapstructure:"noticer"`
+	} `mapstructure:"subscriber"`
 
 	Fetcher struct {
 		Aliyun struct {
-			EnableFetch     bool     `mapstructure:"enable_fetch"`
+			Enable          bool     `mapstructure:"enable"`
 			RegionId        string   `mapstructure:"region_id"`
 			AccessKeyId     string   `mapstructure:"access_key_id"`
 			AccessKeySecret string   `mapstructure:"access_key_secret"`
