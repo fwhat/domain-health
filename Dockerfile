@@ -20,6 +20,8 @@ RUN apk add --no-cache tzdata ca-certificates bash btrfs-progs \
  && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
  && apk del tzdata
 
+WORKDIR /bin
+
 COPY --from=builder /var/main /bin/main
 
 RUN chmod +x /bin/main && rm -Rf /var/cache/apk/*

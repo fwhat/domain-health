@@ -5,6 +5,7 @@ services:
     image: domain-health
     volumes:
       - /var/lib/domain-health/config.local.yaml:/bin/config.local.yaml
+      - /opt/domain-health/leveldb:/var/lib/domain-health/leveldb
     ports:
       - 4222:4222
 
