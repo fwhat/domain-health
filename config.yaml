@@ -1,5 +1,5 @@
 debug_level: debug
-store_dir: /var/lib/domain-health
+store_dir: /var/lib/domain-health/leveldb
 log_file: /var/log/domain-health
 listen_address: :4222
 health_time: 600

@@ -1,0 +1,10 @@
+version: "2"
+services:
+  domain-health:
+    build: .
+    image: domain-health
+    volumes:
+      - /var/lib/domain-health/config.local.yaml:/bin/config.local.yaml
+    ports:
+      - 4222:4222
+

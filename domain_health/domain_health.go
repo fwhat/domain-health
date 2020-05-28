@@ -219,10 +219,17 @@ func checkAndSave(domain *model.Domain) {
 			domain.CheckError = ErrNotTSL
 			domain.OriginError = hostnameErr
 		} else if certificateInvalidError, ok := err.(x509.CertificateInvalidError); ok {
-			domain.CheckError = ErrExpiredTSL
-			domain.OriginError = certificateInvalidError
-			domain.CertInfo.ExpireTime = certificateInvalidError.Cert.NotAfter.Unix()
-			domain.CertInfo.CommonName = certificateInvalidError.Cert.Issuer.CommonName
+			domain.CheckError = ErrNotTSL
+			domain.OriginError = nil
+
+			for _, name := range certificateInvalidError.Cert.DNSNames {
+				if name == domain.Address {
+					domain.CheckError = ErrExpiredTSL
+					domain.OriginError = certificateInvalidError
+					domain.CertInfo.ExpireTime = certificateInvalidError.Cert.NotAfter.Unix()
+					domain.CertInfo.CommonName = certificateInvalidError.Cert.Issuer.CommonName
+				}
+			}
 
 		} else if opError, ok := err.(*net.OpError); ok && opError.Timeout() {
 			domain.CheckError = ErrDomainConnectTimeout
