@@ -1,6 +1,6 @@
 package subscriber
 
-import "github.com/Dowte/domain-health/store/model"
+import "github.com/qjues/domain-health/store/model"
 
 type MessageType string
 

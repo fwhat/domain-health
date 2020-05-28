@@ -2,12 +2,12 @@ package main
 
 import (
 	// init config at first
-	"github.com/Dowte/domain-health/config"
+	"github.com/qjues/domain-health/config"
 
-	"github.com/Dowte/domain-health/api/server"
-	"github.com/Dowte/domain-health/common"
-	"github.com/Dowte/domain-health/domain_health"
-	"github.com/Dowte/domain-health/store"
+	"github.com/qjues/domain-health/api/server"
+	"github.com/qjues/domain-health/common"
+	"github.com/qjues/domain-health/domain_health"
+	"github.com/qjues/domain-health/store"
 	"time"
 )
 

@@ -1,7 +1,7 @@
 package web
 
 import (
-	"github.com/Dowte/domain-health/store"
+	"github.com/qjues/domain-health/store"
 	"net/http"
 )
 

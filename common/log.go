@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/Dowte/domain-health/config"
+	"github.com/qjues/domain-health/config"
 	"github.com/op/go-logging"
 	"os"
 )

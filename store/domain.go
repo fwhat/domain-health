@@ -2,7 +2,7 @@ package store
 
 import (
 	"fmt"
-	"github.com/Dowte/domain-health/store/model"
+	"github.com/qjues/domain-health/store/model"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )

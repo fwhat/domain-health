@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/Dowte/domain-health/api/web"
-	"github.com/Dowte/domain-health/common"
-	"github.com/Dowte/domain-health/config"
+	"github.com/qjues/domain-health/api/web"
+	"github.com/qjues/domain-health/common"
+	"github.com/qjues/domain-health/config"
 	"net/http"
 )
 

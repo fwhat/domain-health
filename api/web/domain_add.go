@@ -2,8 +2,8 @@ package web
 
 import (
 	"encoding/json"
-	"github.com/Dowte/domain-health/store"
-	"github.com/Dowte/domain-health/store/model"
+	"github.com/qjues/domain-health/store"
+	"github.com/qjues/domain-health/store/model"
 	"net/http"
 	"net/url"
 )
